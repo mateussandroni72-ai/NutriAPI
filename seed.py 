@@ -75,3 +75,4 @@ def importar_taco():
 
     finally:
         db.close()
+
