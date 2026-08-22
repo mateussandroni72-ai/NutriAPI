@@ -1,3 +1,7 @@
+
+from contextlib import asynccontextmanager
+from typing import List
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,22 +13,25 @@ from schemas import (
     AlimentoResponse
 )
 import crud
+from seed import importar_taco
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Cria as tabelas antes da importação
+    Base.metadata.create_all(bind=engine)
+
+    # Importa a TACO automaticamente se o banco estiver vazio
+    importar_taco()
+
+    yield
+
 
 app = FastAPI(
     title="NutriAPI",
-    version="2.1.0"
+    version="2.2.0",
+    lifespan=lifespan
 )
-
-from typing import List
-
-@app.get("/buscar", response_model=List[AlimentoResponse])
-def buscar(
-    nome: str,
-    db: Session = Depends(get_db)
-):
-    return crud.buscar_por_nome(db, nome)
-
-Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
@@ -32,6 +39,14 @@ def inicio():
     return {
         "mensagem": "NutriAPI funcionando com SQLite!"
     }
+
+
+@app.get("/buscar", response_model=List[AlimentoResponse])
+def buscar(
+    nome: str,
+    db: Session = Depends(get_db)
+):
+    return crud.buscar_por_nome(db, nome)
 
 
 @app.post("/categorias", response_model=CategoriaResponse)
@@ -78,15 +93,19 @@ def buscar_alimento(
         )
 
     return alimento
-    
-    
+
+
 @app.get("/calcular/{alimento_id}")
 def calcular(
     alimento_id: int,
     gramas: float,
     db: Session = Depends(get_db)
 ):
-    resultado = crud.calcular_alimento(db, alimento_id, gramas)
+    resultado = crud.calcular_alimento(
+        db,
+        alimento_id,
+        gramas
+    )
 
     if resultado is None:
         raise HTTPException(
